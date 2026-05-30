@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Virtual Environment
+venv/
+env/
+.venv/
+.env/
+
+# Generated Output Assets (user's extracted icons go here, not in source control)
+assets/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Antigravity / AI workspace
+.gemini/
+
+# Logs
+*.log

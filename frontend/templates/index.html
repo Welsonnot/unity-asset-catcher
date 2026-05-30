@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unity Asset Fetcher</title>
+    <!-- Google Fonts: Roboto & Roboto Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Link to split static stylesheet -->
+    <link rel="stylesheet" href="/static/css/dashboard.css?v=2.5">
+</head>
+<body>
+
+    <div class="container">
+        
+        <!-- Header -->
+        <header>
+            <div>
+                <h1>Unity Asset Fetcher</h1>
+            </div>
+            <!-- Theme Toggle & Credits -->
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <button class="theme-toggle-btn" id="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+                <div class="app-credits-top" id="app-footer">
+                    <span class="footer-text">Unity Asset Fetcher <span class="footer-ver">v2.0.0</span></span>
+                    <span class="footer-divider">•</span>
+                    <span class="footer-dev">Developed by <a href="https://github.com/Welsonnot" target="_blank" rel="noopener noreferrer" id="footer-author-link">Welsonnot</a></span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Config Control Panel -->
+        <div class="panel" id="main-panel">
+            <div class="config-grid">
+                <div class="input-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                        <label>Source Path (Bundles)</label>
+                        <div class="custom-dropdown" id="game-dropdown" style="display: none;">
+                            <div class="dropdown-trigger" id="dropdown-trigger" onclick="toggleDropdown(event)">
+                                <span class="trigger-logo" id="trigger-logo">
+                                    <i class="fa-solid fa-gamepad"></i>
+                                </span>
+                                <span class="trigger-text" id="trigger-text">-- Quick Game Select --</span>
+                                <i class="fa-solid fa-chevron-down chevron"></i>
+                            </div>
+                            <div class="dropdown-menu" id="dropdown-menu">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                    <input type="text" id="source-path" value="{{ default_source }}" placeholder="E:\Steam\steamapps\common\Rust\Bundles">
+                </div>
+                <div class="input-group">
+                    <label>Destination Path</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="dest-path" value="{{ default_dest }}" placeholder="workspace/assets/rust_icons" style="flex: 1;">
+                        <button class="btn btn-outline" id="btn-browse" onclick="handleBrowseClick()" style="height: 42px; padding: 0 16px; font-size: 11px; white-space: nowrap;">
+                            <i class="fa-regular fa-folder-open"></i> Browse
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <button class="btn btn-primary" id="btn-scan" onclick="handleScanClick()" style="height: 42px; width: 100%;">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <span>Scan Database</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dynamic Category Checklist Panel -->
+            <div class="category-checklist-panel" id="category-panel">
+                <div class="checklist-header">
+                    <h3>Select Categories to Extract & Sort</h3>
+                    <div class="checklist-controls" style="display: flex; gap: 16px; font-size: 11px; font-weight: 500;">
+                        <span onclick="toggleAllCheckboxes(true)" style="color: var(--color-primary); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" onmouseover="this.style.color='#60a5fa'" onmouseout="this.style.color='var(--color-primary)'">
+                            <i class="fa-regular fa-square-check" style="font-size: 13px;"></i> Select All
+                        </span>
+                        <span onclick="toggleAllCheckboxes(false)" style="color: var(--text-muted); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" onmouseover="this.style.color='#f3f4f6'" onmouseout="this.style.color='var(--text-muted)'">
+                            <i class="fa-regular fa-square" style="font-size: 13px;"></i> Deselect All
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="checklist-grid" id="checklist-grid">
+                    <!-- Discovered Categories loaded dynamically -->
+                </div>
+                
+                <div class="checklist-action-bar">
+                    <button class="btn btn-outline" onclick="closeChecklistPanel()">Cancel</button>
+                    <button class="btn btn-primary" id="btn-action" onclick="handleActionClick()">
+                        <i class="fa-solid fa-play"></i>
+                        <span>Extract & Sort Selected</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metric Display row -->
+        <div class="stats-row">
+            <div class="stat-item">
+                <div class="stat-val" id="stat-scanned">0</div>
+                <div class="stat-lbl">Files Scanned</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-val" id="stat-bundles">0</div>
+                <div class="stat-lbl">Bundles Inspected</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-val" id="stat-extracted" style="color: var(--color-primary);">0</div>
+                <div class="stat-lbl">Extracted Icons</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-val" id="stat-time">0.0s</div>
+                <div class="stat-lbl">Elapsed Time</div>
+            </div>
+        </div>
+
+        <!-- Mid Console Grid -->
+        <div class="dashboard-grid">
+            
+            <!-- Terminal Console -->
+            <div class="panel log-panel">
+                <div class="log-header">
+                    <div class="log-title" id="log-title">
+                        <span></span> Pipeline Terminal
+                    </div>
+                    <div style="font-family: 'Roboto Mono', monospace; font-size: 10px; color: var(--text-label); display: flex; gap: 12px;">
+                        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                            <input type="checkbox" id="scroll-lock" checked style="accent-color: var(--color-primary);"> Auto-Scroll
+                        </label>
+                        <span onclick="clearTerminal()" style="cursor: pointer;"><i class="fa-solid fa-trash-can"></i> Clear</span>
+                    </div>
+                </div>
+                <div class="log-body" id="log-body">
+                    <div class="log-line system">[system] Server connection established. Ready to start extraction pipeline.</div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Gallery Header -->
+        <div class="gallery-header">
+            <div class="gallery-title">
+                <h2>Asset Catalog Preview</h2>
+                <span id="gallery-count">0 items loaded</span>
+            </div>
+            
+            <div class="gallery-actions">
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); margin-right: 12px; user-select: none;">
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                        <input type="checkbox" id="toggle-previews" checked onchange="toggleImagePreviews()" style="accent-color: var(--color-primary); width: 14px; height: 14px;"> 
+                        Show Image Previews
+                    </label>
+                </div>
+                <div class="search-input">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="search-input" onkeyup="filterAssets()" placeholder="Search assets...">
+                </div>
+                <div class="filter-tags" id="gallery-filter-tags">
+                    <button class="filter-btn active" onclick="setFilter('all', this)">All Assets</button>
+                    <!-- Category tags loaded dynamically based on scanned items -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Minimal Grid Gallery -->
+        <div class="assets-grid" id="assets-grid">
+            <div class="blank-slate" id="empty-state">
+                <i class="fa-solid fa-images"></i>
+                <h3>Catalog Empty</h3>
+                <p>Click "Scan Database" above to preview and sort the transparent game assets.</p>
+            </div>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="pagination-container" id="pagination-controls" style="display: none;"></div>
+
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <i class="fa-solid fa-circle-check"></i>
+        <span id="toast-message">Copied to clipboard!</span>
+    </div>
+
+    <!-- Asset Inspector Modal -->
+    <div id="inspector-modal" class="modal-overlay" onclick="closeInspectorModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-close" onclick="closeInspectorModal(event, true)">
+                <i class="fa-solid fa-xmark"></i>
+            </div>
+            
+            <div class="modal-body-layout">
+                <div class="modal-preview-pane">
+                    <div class="asset-display large-display">
+                        <img id="modal-image" src="" alt="Asset Preview" onclick="openZoomLightbox(this.src)" title="Click to zoom" style="cursor: zoom-in;">
+                    </div>
+                </div>
+                
+                <div class="modal-details-pane">
+                    <div class="modal-header-info">
+                        <div id="modal-category" class="asset-category-badge" style="position: static; display: inline-block; margin-bottom: 8px;">Weapon</div>
+                        <h2 id="modal-title" style="color: #fff; font-size: 20px; font-weight: 700; margin-bottom: 4px;">Assault Rifle</h2>
+                        <div id="modal-shortname" style="font-family: 'Roboto Mono', monospace; font-size: 11px; color: var(--text-label); word-break: break-all;">assault.rifle</div>
+                    </div>
+                    
+                    <div class="modal-desc-box">
+                        <h4 style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-label); margin-bottom: 6px;">Game Description</h4>
+                        <p id="modal-description" style="font-size: 12px; color: var(--text-muted); line-height: 1.5; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); max-height: 120px; overflow-y: auto;">A high-tier automatic rifle.</p>
+                    </div>
+                    
+                    <div class="modal-spec-grid">
+                        <div class="spec-tile">
+                            <span class="tile-label">Item ID</span>
+                            <span class="tile-val" id="modal-item-id">12493012</span>
+                        </div>
+                        <div class="spec-tile">
+                            <span class="tile-label">Rarity</span>
+                            <span class="tile-val" id="modal-rarity">Common</span>
+                        </div>
+                        <div class="spec-tile">
+                            <span class="tile-label">Stackable</span>
+                            <span class="tile-val" id="modal-stack">1</span>
+                        </div>
+                        <div class="spec-tile">
+                            <span class="tile-label">Type</span>
+                            <span class="tile-val" id="modal-type">Holdable</span>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-action-bar" style="margin-top: auto; display: flex; gap: 12px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                        <button class="btn btn-outline" style="flex: 1;" id="btn-modal-copy" onclick="copyModalName()">
+                            <i class="fa-regular fa-copy"></i> Copy Name
+                        </button>
+                        <button class="btn btn-primary" style="flex: 1;" id="btn-modal-download" onclick="downloadModalAsset()">
+                            <i class="fa-solid fa-download"></i> Save to Folder
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Zoom Lightbox -->
+    <div id="zoom-lightbox" onclick="closeZoomLightbox()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:9999; align-items:center; justify-content:center; cursor:zoom-out;">
+        <img id="zoom-lightbox-img" src="" alt="Zoomed Asset" style="max-width:90vw; max-height:90vh; object-fit:contain; border-radius:8px; box-shadow:0 0 60px rgba(0,0,0,0.8);">
+        <div onclick="closeZoomLightbox()" style="position:absolute; top:20px; right:28px; color:#fff; font-size:28px; cursor:pointer; line-height:1;">&times;</div>
+    </div>
+
+    <!-- Link to split static scripts -->
+    <script src="/static/js/dropdown.js?v=2.5"></script>
+    <script src="/static/js/pagination.js?v=2.5"></script>
+    <script src="/static/js/dashboard.js?v=2.5"></script>
+</body>
+</html>
