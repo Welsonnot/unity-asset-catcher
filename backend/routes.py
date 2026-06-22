@@ -5,21 +5,20 @@ import shutil
 import threading
 from pathlib import Path
 from flask import Flask, jsonify, request, render_template, send_from_directory
-from flask_cors import CORS
 from PIL import Image
 
 # Config imports
-from backend.config import DEFAULT_OUTPUT_DIR, CATEGORY_FOLDER_MAP, resolve_category
+from backend.config import DEFAULT_OUTPUT_DIR, CATEGORY_FOLDER_MAP, resolve_category, UNITY_SCAN_EXCLUDE_DIRS
 # Scanners imports
 from backend.scanner import (
-    detect_rust_bundles, 
-    detect_steam_games, 
-    find_adaptive_assets, 
+    detect_rust_bundles,
+    detect_steam_games,
+    find_adaptive_assets,
     determine_clean_category,
     get_game_name_from_path
 )
 # Extractor imports
-from backend.extractor import global_status, extraction_worker, active_dest_dir
+from backend.extractor import global_status, extraction_worker
 # Folder picker imports
 from backend.picker import open_directory_picker
 
@@ -33,12 +32,9 @@ app = Flask(
     template_folder=TEMPLATE_DIR,
     static_folder=STATIC_DIR
 )
-CORS(app)
-
-# Helper setter for active_dest_dir in routes module
-def set_active_dest_dir(val):
-    global active_dest_dir
-    active_dest_dir = val
+# No CORS: the UI is only ever served from this same origin (127.0.0.1:5000).
+# Enabling cross-origin requests here would let any other site's JS reach
+# these filesystem-touching endpoints from a browser tab the user has open.
 
 # Encode / decode paths for generic games
 def encode_path(p):
@@ -109,7 +105,7 @@ def scan_categories():
                 
             png_files = []
             for root, dirs, files in os.walk(game_root):
-                if any(x in root for x in ["MonoBleedingEdge", "Diagnostics", "CrashReports", "Redis"]):
+                if any(x in root for x in UNITY_SCAN_EXCLUDE_DIRS):
                     continue
                 for file in files:
                     if file.lower().endswith(".png"):
@@ -171,8 +167,8 @@ def start_extraction():
         
     # Start extraction thread
     thread = threading.Thread(
-        target=extraction_worker, 
-        args=(source_dir, dest_dir, selected_categories, set_active_dest_dir)
+        target=extraction_worker,
+        args=(source_dir, dest_dir, selected_categories)
     )
     thread.daemon = True
     thread.start()
@@ -249,18 +245,20 @@ def get_metadata(filename):
 
 @app.route('/api/extract_single', methods=['POST'])
 def extract_single():
-    global active_dest_dir
     data = request.json or {}
-    filename = data.get('filename', '').strip()
+    # Always reduce to a bare filename: it gets joined onto the dest path
+    # below, and pathlib lets an absolute/`..`-laden string escape that
+    # directory entirely if it isn't sanitized first.
+    filename = os.path.basename(data.get('filename', '').strip())
     full_path_src = data.get('full_path', '').strip()
     dest_dir = data.get('dest_dir', '').strip()
     source_dir_to_use = data.get('source_dir', '').strip()
-    
+
     if not filename:
         return jsonify({"status": "error", "message": "Filename is required"}), 400
     if not dest_dir:
         dest_dir = str(DEFAULT_OUTPUT_DIR)
-        
+
     try:
         # Resolve source file
         if full_path_src and os.path.exists(full_path_src):
@@ -270,10 +268,12 @@ def extract_single():
             if not source_dir:
                 return jsonify({"status": "error", "message": "Rust Bundles path not found"}), 404
             src_file = Path(source_dir) / "items" / filename
-            
+
         if not src_file.exists():
             return jsonify({"status": "error", "message": f"Asset '{filename}' not found in game files"}), 404
-            
+        if src_file.suffix.lower() != ".png":
+            return jsonify({"status": "error", "message": "Only .png assets can be extracted"}), 400
+
         # Find category
         cat = "Misc"
         json_file = src_file.with_suffix(".json")
@@ -294,9 +294,9 @@ def extract_single():
         game_name = get_game_name_from_path(source_dir_to_use or (str(src_file.parent.parent) if full_path_src else ""))
         subfolder_name = CATEGORY_FOLDER_MAP.get(cat, cat.lower().replace(" ", "_"))
         dest_path = Path(dest_dir)
-        
-        set_active_dest_dir(str(dest_path))
-            
+
+        global_status.update(active_dest_dir=str(dest_path))
+
         game_dest_subfolder = dest_path / game_name / subfolder_name
         game_dest_subfolder.mkdir(parents=True, exist_ok=True)
         
@@ -332,13 +332,17 @@ def extract_single():
 
 @app.route('/extracted_assets/<path:filename>')
 def serve_extracted_asset(filename):
-    global active_dest_dir
-    return send_from_directory(active_dest_dir, filename)
+    return send_from_directory(global_status.active_dest_dir, filename)
 
 @app.route('/raw_assets_generic/<path_b64>')
 def serve_raw_asset_generic(path_b64):
     try:
         full_path = decode_path(path_b64)
+        # This endpoint takes an arbitrary filesystem path from the client,
+        # so it's restricted to .png assets only - it must never become a
+        # generic "read any file on disk" primitive.
+        if Path(full_path).suffix.lower() != ".png":
+            return "Only .png assets can be served", 403
         if not os.path.exists(full_path):
             return "Asset file not found", 404
         directory = os.path.dirname(full_path)

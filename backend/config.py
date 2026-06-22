@@ -78,6 +78,11 @@ SEEDS_PLANTS_SHORTNAME_SUBSTRINGS = (
     "mushroom",
 )
 
+# Directories to skip when walking a generic Unity game tree.
+# Shared by the preview scan (routes.scan_categories) and the real
+# extraction pass (extractor.extraction_worker) so the two stay in sync.
+UNITY_SCAN_EXCLUDE_DIRS = ("MonoBleedingEdge", "Diagnostics", "CrashReports", "Redis")
+
 def resolve_category(shortname: str, raw_category: str) -> str:
     """
     Returns the final display category for an item.

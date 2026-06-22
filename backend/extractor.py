@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 from PIL import Image
 
-from backend.config import CATEGORY_FOLDER_MAP, resolve_category
+from backend.config import CATEGORY_FOLDER_MAP, resolve_category, UNITY_SCAN_EXCLUDE_DIRS
 from backend.scanner import find_adaptive_assets, determine_clean_category, get_game_name_from_path
 
 # Thread-safe global state for tracking extraction status
@@ -24,6 +24,7 @@ class ExtractionStatus:
         self.extracted_items = []  # list of {"name": "...", "size": "...", "dimensions": "...", "url": "...", "category": "..."}
         self.lock = threading.Lock()
         self.cancel_requested = False
+        self.active_dest_dir = ""
 
     def log(self, message):
         timestamp = time.strftime("%H:%M:%S")
@@ -68,12 +69,9 @@ class ExtractionStatus:
             }
 
 global_status = ExtractionStatus()
-active_dest_dir = "" # Will be populated dynamically during routing/extraction
 
 # Extraction Pipeline Thread Worker
-def extraction_worker(source_dir, dest_dir, selected_categories, active_dest_setter):
-    active_dest_setter(dest_dir)
-    
+def extraction_worker(source_dir, dest_dir, selected_categories):
     global_status.update(
         is_running=True,
         phase="extracting",
@@ -85,9 +83,10 @@ def extraction_worker(source_dir, dest_dir, selected_categories, active_dest_set
         start_time=time.time(),
         elapsed_time=0.0,
         extracted_items=[],
+        logs=[],
+        active_dest_dir=dest_dir,
         cancel_requested=False
     )
-    global_status.logs = []
     
     game_name = get_game_name_from_path(source_dir)
     global_status.log(f"Starting Dynamic Asset Extraction Pipeline for [{game_name}]...")
@@ -177,7 +176,7 @@ def extraction_worker(source_dir, dest_dir, selected_categories, active_dest_set
             
             png_files = []
             for root, dirs, files in os.walk(game_root):
-                if "MonoBleedingEdge" in root or "Diagnostics" in root:
+                if any(x in root for x in UNITY_SCAN_EXCLUDE_DIRS):
                     continue
                 for file in files:
                     if file.lower().endswith(".png"):

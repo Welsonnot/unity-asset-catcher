@@ -6,14 +6,12 @@ import time
 
 # Auto-install missing dependencies on startup.
 def install_dependencies():
-    required_packages = ['flask', 'flask-cors', 'Pillow']
+    required_packages = ['flask', 'Pillow']
     installed_any = False
     for package in required_packages:
         try:
             if package == 'Pillow':
                 import PIL
-            elif package == 'flask-cors':
-                import flask_cors
             else:
                 __import__(package)
         except ImportError:
